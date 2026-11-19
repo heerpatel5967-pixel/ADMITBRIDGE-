@@ -1,0 +1,208 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated student profile storing Chance Me preferences and shortlisted college IDs.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth UID owning this profile document."
+        },
+        "displayName": {
+          "type": "string",
+          "maxLength": 100,
+          "description": "Display name shown in the UI."
+        },
+        "chanceMeExam": {
+          "type": "string",
+          "enum": ["JEE Main", "JEE Advanced", "GATE", "IIT JAM", "CAT", "CUET", "Merit"],
+          "description": "Selected entrance exam for Chance Me eligibility calculation."
+        },
+        "chanceMeScore": {
+          "type": "string",
+          "maxLength": 20,
+          "description": "Entered percentile or numeric score."
+        },
+        "rajasthanDomicile": {
+          "type": "boolean",
+          "description": "Whether Rajasthan Home State / Domicile quota applies."
+        },
+        "shortlistIds": {
+          "type": "array",
+          "description": "Bounded list (max 30) of shortlisted college IDs."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp."
+        }
+      },
+      "required": [
+        "uid",
+        "chanceMeExam",
+        "chanceMeScore",
+        "rajasthanDomicile",
+        "shortlistIds",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "ChatMessageRecord": {
+      "title": "ChatMessageRecord",
+      "description": "Single persisted AI admissions counsellor turn under a user account.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase UID."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["user", "assistant"],
+          "description": "Message speaker role."
+        },
+        "content": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 25000,
+          "description": "Message markdown or prompt text."
+        },
+        "clientOrder": {
+          "type": "number",
+          "description": "Monotonic client sort index for chronological message ordering."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["userId", "role", "content", "clientOrder", "createdAt"]
+    },
+    "CustomCollege": {
+      "title": "CustomCollege",
+      "description": "Custom university entry added or edited by an authenticated user or admin.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Document identifier."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 160,
+          "description": "Institution full name."
+        },
+        "city": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "description": "Institution city."
+        },
+        "state": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "description": "Institution state."
+        },
+        "type": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 80,
+          "description": "Institution category label."
+        },
+        "portalUrl": {
+          "type": "string",
+          "maxLength": 300,
+          "description": "Official admission portal URL."
+        },
+        "ugCourses": {
+          "type": "array",
+          "description": "Undergraduate programs offered (max 25)."
+        },
+        "pgCourses": {
+          "type": "array",
+          "description": "Postgraduate programs offered (max 25)."
+        },
+        "entranceExams": {
+          "type": "array",
+          "description": "Accepted entrance examinations (max 25)."
+        },
+        "feeRanges": {
+          "type": "object",
+          "description": "UG and PG total fee range object { ugTotal, pgTotal }."
+        },
+        "placementHighlights": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "Average and highest placement package summary."
+        },
+        "scholarshipInfo": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Optional merit scholarship policy and percentile fee-waiver slabs."
+        },
+        "createdBy": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "UID of the creator."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp."
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "city",
+        "state",
+        "type",
+        "portalUrl",
+        "ugCourses",
+        "pgCourses",
+        "entranceExams",
+        "feeRanges",
+        "placementHighlights",
+        "createdBy",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user preferences, Chance Me score inputs, and shortlisted college IDs."
+    },
+    "/users/{userId}/chats/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessageRecord" },
+      "description": "Chronological AI counsellor conversation history owned by the user."
+    },
+    "/colleges/{collegeId}": {
+      "schema": { "$ref": "#/entities/CustomCollege" },
+      "description": "Custom university brochure entries created and managed by authenticated users or admins."
+    }
+  }
+}

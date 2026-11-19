@@ -1,0 +1,8 @@
+{
+  "name": " ADMIT BRIDGE ",
+  "description": "AI Postgraduate (Master's) College Enquiry & ROI Portal for Indian students exploring M.Tech, MBA, MCA, and M.Sc admissions.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

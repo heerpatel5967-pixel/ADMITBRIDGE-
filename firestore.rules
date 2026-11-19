@@ -1,0 +1,283 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net — deny everything by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core primitives
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isBootstrappedAdmin() {
+      return isVerifiedUser() && request.auth.token.email == 'heerpatel5967@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin();
+    }
+
+    function isValidExam(exam) {
+      return exam is string && exam in ['JEE Main', 'JEE Advanced', 'GATE', 'IIT JAM', 'CAT', 'CUET', 'Merit'];
+    }
+
+    function isValidBoundedStringList(arr, maxItems, maxItemLen) {
+      return arr is list
+        && arr.size() <= maxItems
+        && (arr.size() == 0 || (arr[0] is string && arr[0].size() <= maxItemLen));
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll([
+          'uid',
+          'chanceMeExam',
+          'chanceMeScore',
+          'rajasthanDomicile',
+          'shortlistIds',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid',
+          'displayName',
+          'chanceMeExam',
+          'chanceMeScore',
+          'rajasthanDomicile',
+          'shortlistIds',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.uid is string
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100))
+        && isValidExam(data.chanceMeExam)
+        && data.chanceMeScore is string
+        && data.chanceMeScore.size() <= 20
+        && data.rajasthanDomicile is bool
+        && isValidBoundedStringList(data.shortlistIds, 30, 128)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidChatMessage(data, userId) {
+      return data.keys().hasAll(['userId', 'role', 'content', 'clientOrder', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'role', 'content', 'clientOrder', 'createdAt'])
+        && data.userId is string
+        && data.userId == userId
+        && data.userId == request.auth.uid
+        && data.role is string
+        && data.role in ['user', 'assistant']
+        && data.content is string
+        && data.content.size() >= 1
+        && data.content.size() <= 25000
+        && data.clientOrder is number
+        && data.clientOrder >= 0
+        && data.createdAt is timestamp;
+    }
+
+    function isValidFeeRanges(feeMap) {
+      return feeMap is map
+        && feeMap.keys().hasAll(['ugTotal', 'pgTotal'])
+        && feeMap.keys().hasOnly(['ugTotal', 'pgTotal'])
+        && feeMap.ugTotal is string
+        && feeMap.ugTotal.size() >= 1
+        && feeMap.ugTotal.size() <= 60
+        && feeMap.pgTotal is string
+        && feeMap.pgTotal.size() >= 1
+        && feeMap.pgTotal.size() <= 60;
+    }
+
+    function isValidCustomCollege(data, collegeId) {
+      return data.keys().hasAll([
+          'id',
+          'name',
+          'city',
+          'state',
+          'type',
+          'portalUrl',
+          'ugCourses',
+          'pgCourses',
+          'entranceExams',
+          'feeRanges',
+          'placementHighlights',
+          'createdBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'id',
+          'name',
+          'city',
+          'state',
+          'type',
+          'portalUrl',
+          'ugCourses',
+          'pgCourses',
+          'entranceExams',
+          'feeRanges',
+          'placementHighlights',
+          'scholarshipInfo',
+          'createdBy',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.id is string
+        && data.id == collegeId
+        && isValidId(data.id)
+        && data.name is string
+        && data.name.size() >= 2
+        && data.name.size() <= 160
+        && data.city is string
+        && data.city.size() >= 2
+        && data.city.size() <= 80
+        && data.state is string
+        && data.state.size() >= 2
+        && data.state.size() <= 80
+        && data.type is string
+        && data.type.size() >= 2
+        && data.type.size() <= 80
+        && data.portalUrl is string
+        && data.portalUrl.size() <= 300
+        && isValidBoundedStringList(data.ugCourses, 25, 100)
+        && isValidBoundedStringList(data.pgCourses, 25, 100)
+        && isValidBoundedStringList(data.entranceExams, 25, 60)
+        && isValidFeeRanges(data.feeRanges)
+        && data.placementHighlights is string
+        && data.placementHighlights.size() <= 200
+        && (!('scholarshipInfo' in data) || (data.scholarshipInfo is string && data.scholarshipInfo.size() <= 500))
+        && data.createdBy is string
+        && data.createdBy.size() <= 128
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    // /users/{userId} — private student preferences & shortlist
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if false;
+
+      allow create: if isVerifiedUser()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'displayName',
+          'chanceMeExam',
+          'chanceMeScore',
+          'rajasthanDomicile',
+          'shortlistIds',
+          'updatedAt'
+        ]);
+
+      allow delete: if isVerifiedUser() && isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      // /users/{userId}/chats/{messageId} — persisted AI counsellor messages
+      match /chats/{messageId} {
+        allow get: if isValidId(userId)
+          && isValidId(messageId)
+          && isSignedIn()
+          && ((isOwner(userId) && existing().userId == request.auth.uid) || isAdmin());
+
+        allow list: if isSignedIn()
+          && (isOwner(userId) || isBootstrappedAdmin());
+
+        allow create: if isVerifiedUser()
+          && isValidId(userId)
+          && isValidId(messageId)
+          && isOwner(userId)
+          && isValidChatMessage(incoming(), userId)
+          && incoming().createdAt == request.time
+          && exists(/databases/$(database)/documents/users/$(userId));
+
+        allow update: if false;
+
+        allow delete: if isVerifiedUser()
+          && isValidId(userId)
+          && isValidId(messageId)
+          && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // /colleges/{collegeId} — custom brochure colleges added/edited by signed-in users or admin
+    match /colleges/{collegeId} {
+      allow get: if isValidId(collegeId)
+        && isSignedIn()
+        && (existing().createdBy == request.auth.uid || isAdmin());
+
+      allow list: if isSignedIn()
+        && (existing().createdBy == request.auth.uid || isBootstrappedAdmin());
+
+      allow create: if isVerifiedUser()
+        && isValidId(collegeId)
+        && isValidCustomCollege(incoming(), collegeId)
+        && incoming().createdBy == request.auth.uid
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isVerifiedUser()
+        && isValidId(collegeId)
+        && isValidCustomCollege(incoming(), collegeId)
+        && incoming().id == existing().id
+        && incoming().createdBy == existing().createdBy
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (existing().createdBy == request.auth.uid
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'name',
+              'city',
+              'state',
+              'type',
+              'portalUrl',
+              'ugCourses',
+              'pgCourses',
+              'entranceExams',
+              'feeRanges',
+              'placementHighlights',
+              'scholarshipInfo',
+              'updatedAt'
+            ]))
+          || isAdmin()
+        );
+
+      allow delete: if isVerifiedUser()
+        && isValidId(collegeId)
+        && (existing().createdBy == request.auth.uid || isAdmin());
+    }
+  }
+}
